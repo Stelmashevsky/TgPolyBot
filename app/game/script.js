@@ -1,119 +1,169 @@
-const canvas = document.getElementById("pongCanvas");
-const ctx = canvas.getContext("2d");
+const canvas = document.getElementById('game');
+const context = canvas.getContext('2d');
 
-// Game variables
-const paddleWidth = 10;
-const paddleHeight = 80;
-const ballSize = 10;
+// // Dynamically set canvas size based on Telegram Mini App viewport
+// function resizeCanvas() {
+//   canvas.width = window.innerWidth; // Full width of the Telegram Mini App
+//   canvas.height = window.innerHeight; // Full height of the Telegram Mini App
+// }
+// resizeCanvas();
+// window.addEventListener('resize', resizeCanvas);
 
-// Paddle positions
-let paddle1Y = canvas.height / 2 - paddleHeight / 2; // Player-controlled paddle
-let paddle2Y = canvas.height / 2 - paddleHeight / 2; // AI-controlled paddle
+// Grid size and paddle/ball dimensions (relative to canvas size)
+const grid = Math.floor(canvas.width * 0.02); // 2% of canvas width
+const paddleHeight = grid * 5; // Paddle height is 5 grid units
+const maxPaddleY = canvas.height - grid - paddleHeight;
+const ballSize = grid; // Ball size is 1 grid unit
 
-// Ball position and velocity
-let ballX = canvas.width / 2;
-let ballY = canvas.height / 2;
-let ballSpeedX = 3;
-let ballSpeedY = 3;
+// Paddle and ball speeds (relative to canvas size)
+const paddleSpeed = Math.floor(canvas.height * 0.01); // 1% of canvas height
+const ballSpeed = Math.floor(canvas.width * 0.005); // 0.5% of canvas width
 
-// Paddle movement flags
-let paddle1Up = false;
-let paddle1Down = false;
+// Left paddle (controlled by player)
+const leftPaddle = {
+  x: grid * 2,
+  y: canvas.height / 2 - paddleHeight / 2,
+  width: grid,
+  height: paddleHeight,
+  dy: 0 // Paddle velocity
+};
 
-// Draw paddles
-function drawPaddle(x, y) {
-  ctx.fillStyle = "white";
-  ctx.fillRect(x, y, paddleWidth, paddleHeight);
-}
+// Right paddle (controlled by AI)
+const rightPaddle = {
+  x: canvas.width - grid * 3,
+  y: canvas.height / 2 - paddleHeight / 2,
+  width: grid,
+  height: paddleHeight,
+  dy: 0 // Paddle velocity
+};
 
-// Draw ball
-function drawBall() {
-  ctx.fillStyle = "white";
-  ctx.fillRect(ballX, ballY, ballSize, ballSize);
-}
+// Ball
+const ball = {
+  x: canvas.width / 2,
+  y: canvas.height / 2,
+  width: ballSize,
+  height: ballSize,
+  dx: ballSpeed, // Ball velocity in x direction
+  dy: -ballSpeed, // Ball velocity in y direction
+  resetting: false // Flag to reset ball position
+};
 
-// Move paddles
-function movePaddle1() {
-  if (paddle1Up) {
-    paddle1Y = Math.max(0, paddle1Y - 5); // Move up smoothly
-  }
-  if (paddle1Down) {
-    paddle1Y = Math.min(canvas.height - paddleHeight, paddle1Y + 5); // Move down smoothly
-  }
-}
-
-// AI paddle movement
-function movePaddle2() {
-  // Move the AI paddle to follow the ball
-  const paddleCenter = paddle2Y + paddleHeight / 2;
-  if (paddleCenter < ballY) {
-    paddle2Y = Math.min(canvas.height - paddleHeight, paddle2Y + 3); // Move down
-  } else if (paddleCenter > ballY) {
-    paddle2Y = Math.max(0, paddle2Y - 3); // Move up
-  }
-}
-
-// Ball movement and collision
-function moveBall() {
-  ballX += ballSpeedX;
-  ballY += ballSpeedY;
-
-  // Ball collision with top and bottom walls
-  if (ballY <= 0 || ballY + ballSize >= canvas.height) {
-    ballSpeedY *= -1;
-  }
-
-  // Ball collision with paddles
-  if (
-    (ballX <= paddleWidth && ballY + ballSize >= paddle1Y && ballY <= paddle1Y + paddleHeight) ||
-    (ballX + ballSize >= canvas.width - paddleWidth &&
-      ballY + ballSize >= paddle2Y &&
-      ballY <= paddle2Y + paddleHeight)
-  ) {
-    ballSpeedX *= -1;
-  }
-
-  // Ball out of bounds (reset position)
-  if (ballX <= 0 || ballX + ballSize >= canvas.width) {
-    ballX = canvas.width / 2;
-    ballY = canvas.height / 2;
-    ballSpeedX *= -1; // Reverse direction
-  }
-}
-
-// Draw everything
-function draw() {
-  // Clear canvas
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw paddles and ball
-  drawPaddle(0, paddle1Y); // Paddle 1 (left, player-controlled)
-  drawPaddle(canvas.width - paddleWidth, paddle2Y); // Paddle 2 (right, AI-controlled)
-  drawBall();
+// Collision detection function
+function collides(obj1, obj2) {
+  return obj1.x < obj2.x + obj2.width &&
+         obj1.x + obj1.width > obj2.x &&
+         obj1.y < obj2.y + obj2.height &&
+         obj1.y + obj1.height > obj2.y;
 }
 
 // Game loop
-function gameLoop() {
-  movePaddle1(); // Move player paddle
-  movePaddle2(); // Move AI paddle
-  moveBall();
-  draw();
-  requestAnimationFrame(gameLoop);
+function loop() {
+  requestAnimationFrame(loop);
+  context.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Move player's paddle
+  leftPaddle.y += leftPaddle.dy;
+
+  // Prevent player's paddle from going out of bounds
+  leftPaddle.y = Math.max(grid, Math.min(leftPaddle.y, maxPaddleY));
+
+  // AI paddle logic: follow the ball
+  const paddleCenter = rightPaddle.y + rightPaddle.height / 2;
+  if (paddleCenter < ball.y) {
+    rightPaddle.y += paddleSpeed; // Move down
+  } else if (paddleCenter > ball.y) {
+    rightPaddle.y -= paddleSpeed; // Move up
+  }
+
+  // Prevent AI paddle from going out of bounds
+  rightPaddle.y = Math.max(grid, Math.min(rightPaddle.y, maxPaddleY));
+
+  // Draw paddles
+  context.fillStyle = 'white';
+  context.fillRect(leftPaddle.x, leftPaddle.y, leftPaddle.width, leftPaddle.height);
+  context.fillRect(rightPaddle.x, rightPaddle.y, rightPaddle.width, rightPaddle.height);
+
+  // Move ball
+  ball.x += ball.dx;
+  ball.y += ball.dy;
+
+  // Ball collision with top and bottom walls
+  if (ball.y < grid || ball.y + ball.height > canvas.height - grid) {
+    ball.dy *= -1; // Reverse ball direction
+  }
+
+  // Reset ball if it goes out of bounds
+  if ((ball.x < 0 || ball.x > canvas.width) && !ball.resetting) {
+    ball.resetting = true;
+    setTimeout(() => {
+      ball.resetting = false;
+      ball.x = canvas.width / 2;
+      ball.y = canvas.height / 2;
+      ball.dx = ballSpeed * (Math.random() > 0.5 ? 1 : -1); // Randomize direction
+      ball.dy = ballSpeed * (Math.random() > 0.5 ? 1 : -1);
+    }, 400);
+  }
+
+  // Ball collision with paddles
+  if (collides(ball, leftPaddle)) {
+    ball.dx *= -1;
+    ball.x = leftPaddle.x + leftPaddle.width; // Prevent sticking
+  } else if (collides(ball, rightPaddle)) {
+    ball.dx *= -1;
+    ball.x = rightPaddle.x - ball.width; // Prevent sticking
+  }
+
+  // Draw ball
+  context.fillRect(ball.x, ball.y, ball.width, ball.height);
+
+  // Draw walls
+  context.fillStyle = 'lightgrey';
+  context.fillRect(0, 0, canvas.width, grid); // Top wall
+  context.fillRect(0, canvas.height - grid, canvas.width, grid); // Bottom wall
+
+  // Draw dotted line in the middle
+  for (let i = grid; i < canvas.height - grid; i += grid * 2) {
+    context.fillRect(canvas.width / 2 - grid / 2, i, grid, grid);
+  }
 }
 
-// Event listeners for smooth paddle movement
-document.getElementById("paddle1Up").addEventListener("mousedown", () => {
-  paddle1Up = true;
+// Touch controls for mobile
+const upButton = document.getElementById('up');
+const downButton = document.getElementById('down');
+
+// Add touch event listeners
+upButton.addEventListener('touchstart', (e) => {
+  e.preventDefault(); // Prevent default behavior
+  leftPaddle.dy = -paddleSpeed; // Move up
 });
-document.getElementById("paddle1Up").addEventListener("mouseup", () => {
-  paddle1Up = false;
+upButton.addEventListener('touchend', (e) => {
+  e.preventDefault(); // Prevent default behavior
+  leftPaddle.dy = 0; // Stop moving
 });
 
-document.getElementById("paddle1Down").addEventListener("mousedown", () => {
-  paddle1Down = true;
+downButton.addEventListener('touchstart', (e) => {
+  e.preventDefault(); // Prevent default behavior
+  leftPaddle.dy = paddleSpeed; // Move down
 });
-document.getElementById("paddle1Down").addEventListener("mouseup", () => {
-  paddle1Down = false;
+downButton.addEventListener('touchend', (e) => {
+  e.preventDefault(); // Prevent default behavior
+  leftPaddle.dy = 0; // Stop moving
 });
+
+// // Add mouse event listeners for desktop testing
+// upButton.addEventListener('mousedown', () => {
+//   leftPaddle.dy = -paddleSpeed; // Move up
+// });
+// upButton.addEventListener('mouseup', () => {
+//   leftPaddle.dy = 0; // Stop moving
+// });
+
+// downButton.addEventListener('mousedown', () => {
+//   leftPaddle.dy = paddleSpeed; // Move down
+// });
+// downButton.addEventListener('mouseup', () => {
+//   leftPaddle.dy = 0; // Stop moving
+// });
+
 // Start the game
-gameLoop();
+loop();
